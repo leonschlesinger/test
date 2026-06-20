@@ -1,0 +1,1544 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FUELENOUGH — Verpflegungsplan</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    /* warm editorial-minimalist palette (light) */
+    --bg:#F3EDE3;             /* warm putty base */
+    --ink:#FBF7EF;            /* near-white surface for inputs / tracks / chips */
+    --panel:#FBF8F1;          /* card surface */
+    --panel-2:#EFE7D8;        /* putty alt surface / chips-on / tooltip */
+    --line:rgba(28,22,16,0.10);
+    --route:#D9532F;          /* terracotta-coral — ENERGY / fuel (semantic) */
+    --amber:#2A41C4;          /* cobalt — DATA contrast (semantic) */
+    --text:#1C1813;           /* warm near-black */
+    --muted:#857B6D;          /* warm grey */
+    --good:#5B7A45;           /* olive */
+    --map:light;
+    --display:'Fraunces',Georgia,'Times New Roman',serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --body:'Manrope',system-ui,sans-serif;
+    --r-lg:26px;              /* large card radius */
+    --r-md:18px;
+  }
+  html[data-theme="dark"]{
+    --bg:#15110C;
+    --ink:#211B14;
+    --panel:#1C1710;
+    --panel-2:#272017;
+    --line:rgba(255,255,255,0.10);
+    --route:#EE6440;
+    --amber:#5E78FF;
+    --text:#F2ECE1;
+    --muted:#9A9082;
+    --good:#7CA15F;
+    --map:dark;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(110% 60% at 50% -6%, rgba(217,83,47,0.07), transparent 55%),
+      var(--bg);
+    background-attachment:fixed;
+    color:var(--text);
+    font-family:var(--body);
+    font-size:15.5px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:0 22px}
+
+  /* ---- top bar ---- */
+  header{
+    border-bottom:1px solid var(--line);
+    position:sticky;top:0;z-index:600;
+    background:color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter:blur(16px);
+  }
+  .bar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 0}
+  .bar .left{display:flex;align-items:baseline;gap:13px}
+  .mark{
+    font-family:var(--body);font-weight:800;letter-spacing:-.01em;
+    font-size:19px;color:var(--text);
+  }
+  .mark b{color:var(--route);font-weight:800}
+  .tagline{font-family:var(--body);font-weight:500;font-size:12px;color:var(--muted);letter-spacing:.01em}
+  .theme-btn{
+    display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+    background:var(--panel);border:1px solid var(--line);border-radius:99px;
+    padding:7px 13px;color:var(--text);font-family:var(--body);font-weight:600;font-size:12.5px;
+    transition:border-color .15s,background .15s;
+  }
+  .theme-btn:hover{border-color:var(--route)}
+
+  /* ================= editorial landing ================= */
+  #intro{padding:0 0 30px}
+  .section{padding:50px 0}
+  .eyebrow{font-family:var(--body);font-weight:700;font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--route)}
+  .eyebrow.cool{color:var(--amber)}
+  .sec-head{font-family:var(--display);font-weight:600;font-size:clamp(25px,3.6vw,36px);line-height:1.08;letter-spacing:-.012em;margin:13px 0 0}
+  .sec-sub{color:var(--muted);max-width:560px;margin:11px 0 0;font-size:15.5px}
+
+  /* bento card base */
+  .bcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:26px;box-shadow:0 3px 22px rgba(60,42,20,.05)}
+  .bcard.alt{background:var(--panel-2)}
+
+  /* CTA */
+  .cta{display:inline-flex;align-items:center;gap:9px;background:var(--route);color:#fff;border:none;border-radius:99px;padding:15px 26px;font-family:var(--body);font-weight:700;font-size:16px;cursor:pointer;transition:transform .15s,filter .15s;text-decoration:none}
+  .cta:hover{filter:brightness(1.06);transform:translateY(-1px)}
+  .cta.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+  .cta.ghost:hover{filter:none;border-color:var(--route)}
+  .cta-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:26px}
+
+  /* HERO */
+  .hero{display:grid;grid-template-columns:1fr;gap:18px;padding:40px 0 8px}
+  .hero h1{font-family:var(--display);font-weight:600;font-size:clamp(40px,7.2vw,78px);line-height:.98;letter-spacing:-.022em;margin:18px 0 0;color:var(--text)}
+  .hero h1 em{font-style:italic;color:var(--route)}
+  .hero .vp{color:var(--muted);font-size:17px;max-width:460px;margin:20px 0 0}
+
+  /* steps */
+  .steps{display:grid;grid-template-columns:1fr;gap:16px;margin-top:28px}
+  .step .n{font-family:var(--display);font-weight:600;font-size:38px;color:var(--route);line-height:1}
+  .step.cool .n{color:var(--amber)}
+  .step h3{font-family:var(--display);font-weight:600;font-size:21px;margin:16px 0 7px;color:var(--text)}
+  .step p{color:var(--muted);font-size:14.5px;margin:0}
+
+  /* features */
+  .features{display:grid;grid-template-columns:1fr;gap:15px;margin-top:28px}
+  .feat h3{font-family:var(--display);font-weight:600;font-size:18px;margin:0 0 8px;color:var(--text)}
+  .feat p{color:var(--muted);font-size:14px;margin:0;line-height:1.55}
+  .feat .ft{display:inline-block;font-family:var(--body);font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);margin-bottom:12px}
+
+  /* why offline */
+  .why .big{font-family:var(--display);font-weight:600;font-size:clamp(27px,4vw,44px);line-height:1.1;letter-spacing:-.012em;margin:14px 0 0}
+  .why .big em{font-style:italic;color:var(--route)}
+  .why ul{list-style:none;margin:24px 0 0;padding:0;display:grid;gap:13px}
+  .why li{display:flex;gap:12px;color:var(--muted);font-size:15px}
+  .why li b{color:var(--text);font-weight:700}
+  .why li::before{content:'—';color:var(--amber);font-weight:700}
+
+  /* desktop bento grids (mobile-first → expand up) */
+  @media(min-width:680px){
+    .steps{grid-template-columns:repeat(3,1fr)}
+    .features{grid-template-columns:repeat(2,1fr)}
+  }
+  @media(min-width:920px){
+    .features{grid-template-columns:repeat(4,1fr)}
+  }
+
+  #introMsg{max-width:560px;width:100%;margin-top:18px}
+  input[type=file]{display:none}
+
+  /* ---- layout after load ---- */
+  #app{display:none;padding-bottom:80px}
+  .grid{display:grid;grid-template-columns:1.4fr 1fr;gap:22px;margin-top:24px}
+  @media(max-width:880px){.grid{grid-template-columns:1fr}}
+
+  .card{
+    background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--r-md);overflow:hidden;
+    box-shadow:0 3px 22px rgba(60,42,20,.05);
+  }
+  .card .head{
+    padding:14px 18px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .card .head h2{
+    font-family:var(--body);font-weight:700;font-size:11.5px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0;
+  }
+  .card .body{padding:18px}
+
+  #map{height:340px;width:100%;background:var(--panel-2)}
+  .leaflet-container{background:var(--panel-2)}
+
+  /* ---- stats strip ---- */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line)}
+  .stat{background:var(--panel);padding:16px 18px}
+  .stat .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+  .stat .v{font-family:var(--mono);font-weight:700;font-size:24px;margin-top:4px;letter-spacing:-.01em}
+  .stat .v small{font-size:13px;color:var(--muted);font-weight:500;margin-left:3px}
+  @media(max-width:560px){.stats{grid-template-columns:repeat(2,1fr)}}
+
+  /* ---- profile ---- */
+  .profile-wrap{padding:6px 6px 0}
+  svg.profile{width:100%;height:auto;display:block;overflow:visible}
+  .axis-lbl{font-family:var(--mono);font-size:11px;fill:var(--muted)}
+
+  /* feed-point markers (HTML overlay over the profile, distortion-free) */
+  .prof-stack{position:relative}
+  .fp-overlay{position:absolute;inset:0;height:300px;pointer-events:none}
+  .fp-marker{position:absolute;width:17px;height:17px;padding:0;border:none;background:none;line-height:0;cursor:pointer;pointer-events:auto;transform:translate(-50%,-50%);transition:transform .12s}
+  .fp-marker .fpi{width:17px;height:17px;display:block}
+  .fp-marker:hover{transform:translate(-50%,-50%) scale(1.22);z-index:3}
+  .fp-marker.gel{color:var(--route)}
+  .fp-marker.bar{color:var(--amber)}
+  .fp-marker.food{color:var(--good)}
+  .fp-marker.low{opacity:.9}
+  .fp-legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:13px;font-size:12px;color:var(--muted)}
+  .fp-legend span{display:inline-flex;align-items:center;gap:6px}
+  .fp-legend i{display:inline-flex;line-height:0}
+  .fp-legend i svg{width:14px;height:14px;display:block}
+  .lg-ic.gel{color:var(--route)} .lg-ic.bar{color:var(--amber)} .lg-ic.food{color:var(--good)} .lg-ic.dim{color:var(--muted)}
+
+  .fuel-tip{
+    position:fixed;z-index:900;pointer-events:none;
+    background:var(--panel-2);border:1px solid var(--route);
+    border-radius:8px;padding:8px 11px;max-width:230px;
+    font-size:12.5px;line-height:1.4;color:var(--text);
+    box-shadow:0 10px 30px rgba(120,108,150,.28);display:none;
+  }
+  .fuel-tip b{color:var(--route);font-family:var(--mono);font-size:11px;letter-spacing:.06em}
+
+  /* ---- form ---- */
+  .field{margin-bottom:16px}
+  .field label{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+  .field input{
+    width:100%;background:var(--ink);border:1px solid var(--line);
+    border-radius:9px;padding:11px 13px;color:var(--text);
+    font-family:var(--mono);font-size:15px;
+  }
+  .field input:focus{outline:none;border-color:var(--route)}
+  .field .unit{position:relative}
+  .field .unit::after{content:attr(data-unit);position:absolute;right:13px;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:12px;color:var(--muted)}
+
+  .styles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .styles button{
+    background:var(--ink);border:1px solid var(--line);color:var(--muted);
+    border-radius:9px;padding:12px 6px;cursor:pointer;
+    font-family:var(--body);font-weight:600;font-size:14px;
+    transition:all .15s;
+  }
+  .styles button .sub{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;margin-top:3px;opacity:.7}
+  .styles button:hover{border-color:var(--muted);color:var(--text)}
+  .styles button.on{border-color:var(--route);color:var(--text);background:var(--panel-2)}
+
+  .go{
+    width:100%;margin-top:8px;border:none;cursor:pointer;
+    background:var(--route);color:#fff;
+    font-family:var(--body);font-weight:700;font-size:16px;letter-spacing:.005em;
+    border-radius:99px;padding:15px;transition:filter .15s;
+  }
+  .go:hover{filter:brightness(1.08)}
+  .go:disabled{opacity:.45;cursor:not-allowed;filter:none}
+
+  /* ---- GPX download button ---- */
+  .dl-row{margin-top:22px;display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+  .dl-gpx{
+    display:inline-flex;align-items:center;gap:9px;cursor:pointer;
+    background:var(--route);color:#fff;border:none;border-radius:99px;
+    padding:13px 22px;font-family:var(--body);font-weight:700;font-size:14.5px;
+    transition:filter .15s,transform .15s;
+  }
+  .dl-gpx:hover{filter:brightness(1.07);transform:translateY(-1px)}
+  .dl-gpx:disabled{opacity:.45;cursor:not-allowed;filter:none;transform:none}
+  .dl-hint{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.02em;flex:1;min-width:180px}
+
+  /* ---- collapsible Verpflegungspunkte section ---- */
+  .vp-section{margin-top:0}
+  .vp-summary{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    cursor:pointer;user-select:none;list-style:none;margin:24px 0 12px;
+  }
+  .vp-summary::-webkit-details-marker{display:none}
+  .vp-summary::marker{content:""}
+  .vp-summary:focus-visible{outline:2px solid var(--route);outline-offset:3px;border-radius:6px}
+  .vp-count{color:var(--route)}
+  .vp-chevron{width:14px;height:14px;color:var(--muted);transition:transform .2s ease;flex:none}
+  .vp-section[open] .vp-chevron{transform:rotate(180deg)}
+  .vp-section:not([open]) .vp-summary{margin-bottom:4px}
+
+  /* ---- result ---- */
+  #result{margin-top:22px;display:none}
+  .plan-top{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+  .plan-top .stat .v{color:var(--amber)}
+  @media(max-width:560px){.plan-top{grid-template-columns:1fr}}
+  .plan-summary{padding:18px;font-size:15px;line-height:1.6}
+  .plan-summary .strat{color:var(--muted);margin-top:8px;font-size:14px}
+  .plan-top-2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:560px){.plan-top-2{grid-template-columns:1fr}}
+
+  /* ---- carbohydrate slider ---- */
+  .carb-control{margin:0 18px 18px;padding:18px;border:1px solid var(--route);border-radius:12px;background:linear-gradient(180deg,rgba(255,85,36,.08),transparent)}
+  .carb-control .cc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+  .carb-control .cc-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .carb-control .cc-big{font-family:var(--mono);font-weight:700;font-size:34px;line-height:1;margin-top:6px;color:var(--route)}
+  .carb-control .cc-big small{font-size:15px;color:var(--muted);font-weight:500;margin-left:5px}
+  .carb-control .cc-rec{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;line-height:1.5}
+  .carb-control .cc-rec span{color:var(--amber)}
+  .carb-control input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;margin:18px 0 6px;border-radius:99px;background:var(--ink);border:1px solid var(--line);cursor:pointer}
+  .carb-control input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:var(--route);border:3px solid #fff;box-shadow:0 0 0 1px var(--route),0 2px 8px rgba(120,108,150,.3);cursor:pointer}
+  .carb-control input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--route);border:3px solid var(--ink);box-shadow:0 0 0 1px var(--route);cursor:pointer}
+  .carb-control .cc-scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.04em}
+  .carb-control .cc-hint{color:var(--muted);font-size:12.5px;margin-top:12px;line-height:1.5}
+
+  .sec-title{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:24px 0 12px}
+
+  /* ---- product selection ---- */
+  .products{display:flex;flex-direction:column;gap:12px}
+  .pcat{border:1px solid var(--line);border-radius:10px;padding:13px 14px;transition:opacity .15s}
+  .pcat.off{opacity:.5}
+  .pcat-head{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+  .pcat-name{font-family:var(--body);font-weight:700;font-size:15px}
+  .pcat-sub{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+  .pcat-pct{margin-left:auto;font-family:var(--mono);font-weight:700;font-size:14px;color:var(--route);min-width:46px;text-align:right}
+  .pcat.off .pcat-pct{color:var(--muted);font-weight:500}
+  .cat-weight{-webkit-appearance:none;appearance:none;width:100%;height:5px;margin:2px 0 13px;border-radius:99px;background:var(--ink);border:1px solid var(--line);cursor:pointer}
+  .cat-weight::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:var(--route);border:2px solid var(--ink);box-shadow:0 0 0 1px var(--route);cursor:pointer}
+  .cat-weight::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--route);border:2px solid var(--ink);cursor:pointer}
+  .cat-weight:disabled{cursor:not-allowed;opacity:.4}
+  .cat-weight:disabled::-webkit-slider-thumb{background:var(--muted);box-shadow:0 0 0 1px var(--muted)}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{display:inline-flex;align-items:center;background:var(--ink);border:1px solid var(--line);color:var(--muted);border-radius:99px;padding:7px 12px;font-family:var(--body);font-size:12.5px;cursor:pointer;transition:border-color .14s,color .14s,background .14s}
+  .chip i{font-style:normal;font-family:var(--mono);font-size:11px;opacity:.7;margin-left:4px}
+  .chip:hover:not(:disabled){border-color:var(--muted);color:var(--text)}
+  .chip.on{background:rgba(255,85,36,.14);border-color:var(--route);color:var(--text)}
+  .chip.on i{color:var(--route);opacity:1}
+  .chip.custom{border-style:dashed}
+  .chip:disabled{cursor:not-allowed;opacity:.5}
+  .custom-field{margin-top:11px;max-width:210px}
+  .custom-field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .custom-field .unit{position:relative}
+  .custom-field .unit::after{content:attr(data-unit);position:absolute;right:11px;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:11px;color:var(--muted);pointer-events:none}
+  .custom-field input{width:100%;background:var(--ink);border:1px solid var(--route);border-radius:9px;padding:9px 56px 9px 11px;color:var(--text);font-family:var(--mono);font-size:14px}
+  .custom-field input:focus{outline:none;border-color:var(--route)}
+  .switch{position:relative;display:inline-flex;width:38px;height:21px;cursor:pointer;flex:none}
+  .switch input{opacity:0;width:0;height:0;margin:0}
+  .switch span{position:absolute;inset:0;background:var(--line);border-radius:99px;transition:background .18s}
+  .switch span::before{content:'';position:absolute;width:15px;height:15px;left:3px;top:3px;background:var(--muted);border-radius:50%;transition:transform .18s,background .18s}
+  .switch input:checked + span{background:var(--route)}
+  .switch input:checked + span::before{transform:translateX(17px);background:#fff}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{text-align:left;font-family:var(--mono);font-weight:500;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:9px 12px;border-bottom:1px solid var(--line)}
+  td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  td.num{font-family:var(--mono);color:var(--amber);white-space:nowrap}
+  td .note{color:var(--muted);font-size:12.5px;display:block;margin-top:2px}
+  tr:last-child td{border-bottom:none}
+
+  .timeline{list-style:none;margin:0;padding:0}
+  .timeline li{display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .timeline li:last-child{border:none}
+  .timeline .t{font-family:var(--mono);color:var(--route);font-size:14px;min-width:62px;font-weight:500}
+  .timeline .act b{font-weight:600}
+  .timeline .act b .lg-ic{display:inline-flex;vertical-align:-2px;margin-right:5px;line-height:0}
+  .timeline .act b .lg-ic svg{width:13px;height:13px;display:block}
+  .timeline .act .why{color:var(--muted);font-size:13px;display:block;margin-top:2px}
+  .timeline .low-badge{font-style:normal;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:0 5px;font-size:11px}
+  .timeline li.drink .t{color:var(--amber)}
+
+  .tips{margin:0;padding-left:0;list-style:none}
+  .tips li{padding:9px 0 9px 24px;position:relative;color:var(--text);font-size:14px;border-bottom:1px solid var(--line)}
+  .tips li:last-child{border:none}
+  .tips li::before{content:'›';position:absolute;left:4px;color:var(--route);font-weight:700}
+
+  /* states */
+  .msg{padding:16px 18px;border-radius:10px;font-size:14px;margin-top:14px}
+  .msg.err{background:rgba(217,83,47,.10);border:1px solid var(--route);color:var(--text)}
+
+  /* drop hint (hero) */
+  .droplabel{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;margin-top:20px;min-height:140px;padding:34px 24px;border:1.5px dashed var(--line);border-radius:var(--r-lg);color:var(--muted);font-size:16px;font-weight:600;text-align:center;cursor:pointer;transition:border-color .15s,color .15s,background .15s}
+  .droplabel::before{content:'↑';font-size:26px;font-weight:700;line-height:1;color:var(--route)}
+  .droplabel:hover,#drop.hot{border-color:var(--route);color:var(--text);background:color-mix(in srgb,var(--route) 7%,transparent)}
+
+  /* footer */
+  .foot{border-top:1px solid var(--line);margin-top:30px}
+  .foot-in{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:26px 0}
+  .foot-nav{display:flex;gap:18px;margin-left:6px}
+  .foot-nav a{color:var(--muted);text-decoration:none;font-size:13.5px;font-weight:600;cursor:pointer}
+  .foot-nav a:hover{color:var(--route)}
+  .foot-note{margin-left:auto;color:var(--muted);font-size:12.5px}
+  @media(max-width:560px){.foot-note{margin-left:0;width:100%}}
+  .reset{background:none;border:1px solid var(--line);color:var(--muted);font-family:var(--body);font-weight:600;font-size:11.5px;letter-spacing:.04em;padding:7px 13px;border-radius:99px;cursor:pointer}
+  .reset:hover{border-color:var(--route);color:var(--text)}
+</style>
+
+<header>
+  <div class="wrap bar">
+    <div class="left">
+      <span class="mark"><b>FUEL</b>ENOUGH</span>
+      <span class="tagline">Fueled by your data</span>
+    </div>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="Hell/Dunkel umschalten"><span id="themeIco">◐</span> <span id="themeTxt">Dunkel</span></button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ============ landing ============ -->
+  <section id="intro">
+
+    <!-- (1) HERO -->
+    <div class="hero">
+      <div>
+        <span class="eyebrow">Verpflegung für lange Strecken</span>
+        <h1>Treibstoff für deine <em>längsten</em> Ausfahrten.</h1>
+        <p class="vp">Lade deinen GPX-Track hoch. FUELENOUGH modelliert deinen Energiebedarf aus Strecke, Höhenprofil und deinen Werten – und liefert einen Verpflegungsplan, Kilometer für Kilometer.</p>
+        <div class="cta-row">
+          <button class="cta js-upload" type="button">GPX hochladen ↗</button>
+          <a class="cta ghost" href="#how">So funktioniert's</a>
+        </div>
+        <label id="drop" class="droplabel">
+          <input type="file" id="file" accept=".gpx,application/gpx+xml,application/xml,text/xml">
+          GPX-Datei hierher ziehen oder klicken
+        </label>
+        <div id="introMsg"></div>
+      </div>
+    </div>
+
+    <!-- (2) HOW IT WORKS -->
+    <div class="section" id="how">
+      <span class="eyebrow cool">So funktioniert's</span>
+      <h2 class="sec-head">In drei Schritten zum Plan.</h2>
+      <div class="steps">
+        <div class="bcard step"><div class="n">01</div><h3>Strecke hochladen</h3><p>GPX aus Komoot, Strava, Garmin & Co. – alles läuft direkt im Browser, nichts wird hochgeladen.</p></div>
+        <div class="bcard step cool"><div class="n">02</div><h3>Energie modellieren</h3><p>Ein physikbasiertes Modell schätzt deinen Bedarf aus Distanz, Höhenmetern, Gewicht, Tempo und Fahrstil.</p></div>
+        <div class="bcard step"><div class="n">03</div><h3>Verpflegungsplan erhalten</h3><p>Kohlenhydrate, Flüssigkeit und Natrium pro Stunde – mit Produkten und Zeitplan über die ganze Strecke.</p></div>
+      </div>
+    </div>
+
+    <!-- (3) FEATURE CARDS -->
+    <div class="section">
+      <span class="eyebrow">Was drinsteckt</span>
+      <h2 class="sec-head">Gebaut für echte Distanzen.</h2>
+      <div class="features">
+        <div class="bcard feat"><span class="ft">Strecke</span><h3>GPX-Parsing</h3><p>Liest Track, Distanz und Höhenprofil direkt aus deiner Datei.</p></div>
+        <div class="bcard feat"><span class="ft">Modell</span><h3>Physik-Energiemodell</h3><p>Roll- und Luftwiderstand plus Höhenmeter ergeben einen realistischen Verbrauch.</p></div>
+        <div class="bcard feat"><span class="ft">Privat</span><h3>Offline-first</h3><p>Alles läuft lokal. Kein Konto, kein Upload, funktioniert ohne Empfang.</p></div>
+        <div class="bcard feat"><span class="ft">Optik</span><h3>Hell &amp; Dunkel</h3><p>Editorial-hell am Schreibtisch, kontraststark im Dunkeln – ein Klick.</p></div>
+      </div>
+    </div>
+
+    <!-- (5) WHY OFFLINE -->
+    <div class="section">
+      <div class="bcard alt why">
+        <span class="eyebrow">Warum offline</span>
+        <div class="big">Deine Route bleibt <em>deine Route</em>.</div>
+        <ul>
+          <li><b>Kein Upload.</b> Die GPX-Datei wird im Browser verarbeitet und nie an einen Server gesendet.</li>
+          <li><b>Kein Konto.</b> Keine Anmeldung, kein Tracking, keine Cookies.</li>
+          <li><b>Kein Empfang nötig.</b> Einmal geladen, funktioniert alles auch offline – ideal am Renntag.</li>
+        </ul>
+        <div class="cta-row"><button class="cta js-upload" type="button">Jetzt ausprobieren ↗</button></div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- app -->
+  <section id="app">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+      <div id="trackName" style="font-family:var(--display);font-weight:600;font-size:20px"></div>
+      <button class="reset" onclick="location.reload()">↺ Neue Strecke</button>
+    </div>
+
+    <div class="grid">
+      <!-- left: map + profile -->
+      <div style="display:flex;flex-direction:column;gap:22px">
+        <div class="card">
+          <div class="head"><h2>Streckenverlauf</h2></div>
+          <div id="map"></div>
+          <div class="stats" id="stats"></div>
+        </div>
+
+        <div class="card">
+          <div class="head"><h2>Höhenprofil &amp; Verpflegungspunkte</h2></div>
+          <div class="body profile-wrap" id="profileBox">
+            <div style="color:var(--muted);font-size:13px;padding:8px 4px 16px">Das Profil erscheint hier. Verpflegungspunkte werden nach dem Erstellen des Plans markiert.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- right: inputs -->
+      <div class="card" style="align-self:start">
+        <div class="head"><h2>Deine Werte</h2></div>
+        <div class="body">
+          <div class="field"><label>Körpergröße</label><div class="unit" data-unit="cm"><input id="height" type="number" value="180" min="120" max="220"></div></div>
+          <div class="field"><label>Körpergewicht</label><div class="unit" data-unit="kg"><input id="weight" type="number" value="75" min="35" max="160"></div></div>
+          <div class="field"><label>Fahrradgewicht</label><div class="unit" data-unit="kg"><input id="bike" type="number" value="11" min="5" max="25" step="0.1"></div></div>
+          <div class="field"><label>Ziel-Schnitt</label><div class="unit" data-unit="km/h"><input id="speed" type="number" value="24" min="8" max="45" step="0.5"></div></div>
+          <div class="field"><label>Temperatur</label><div class="unit" data-unit="°C"><input id="temp" type="number" value="18" min="-5" max="42"></div></div>
+
+          <div class="field">
+            <label>Fahrradstil</label>
+            <div class="styles" id="styles">
+              <button data-style="Gravel" class="on">Gravel<span class="sub">SCHOTTER</span></button>
+              <button data-style="MTB">MTB<span class="sub">GELÄNDE</span></button>
+              <button data-style="Rennrad">Rennrad<span class="sub">STRASSE</span></button>
+            </div>
+          </div>
+
+          <button class="go" id="go">Verpflegungsplan erstellen</button>
+          <div id="planMsg"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- result -->
+    <div id="result"></div>
+  </section>
+
+</div>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <span class="mark"><b>FUEL</b>ENOUGH</span>
+    <nav class="foot-nav">
+      <a href="#how">So funktioniert's</a>
+      <a class="js-upload" role="button" tabindex="0">GPX hochladen</a>
+    </nav>
+    <span class="foot-note">Läuft lokal · keine Daten verlassen deinen Browser</span>
+  </div>
+</footer>
+<div class="fuel-tip" id="tip"></div>
+
+<script>
+"use strict";
+
+/* ---------------- state ---------------- */
+let TRACK = null;        // analyzed track
+let BIKE_STYLE = 'Gravel';
+let PLAN = null;
+let PLAN_INPUTS = null;   // stored inputs so the plan can be recomputed
+let CARB_OVERRIDE = null; // user-chosen carbs/hour (null = use recommendation)
+let CURRENT_FEED = null;  // last computed feed-point plan
+
+/* ---------------- GPX parsing ---------------- */
+function parseGPX(text){
+  const xml = new DOMParser().parseFromString(text, 'application/xml');
+  if (xml.querySelector('parsererror')) throw new Error('Die Datei ließ sich nicht als GPX lesen.');
+  let nodes = [...xml.querySelectorAll('trkpt')];
+  if (!nodes.length) nodes = [...xml.querySelectorAll('rtept')];
+  if (!nodes.length) nodes = [...xml.querySelectorAll('wpt')];
+  const pts = nodes.map(n => {
+    const eleEl = n.querySelector('ele');
+    return {
+      lat: parseFloat(n.getAttribute('lat')),
+      lon: parseFloat(n.getAttribute('lon')),
+      ele: eleEl ? parseFloat(eleEl.textContent) : null
+    };
+  }).filter(p => isFinite(p.lat) && isFinite(p.lon));
+  let name = '';
+  const nameEl = xml.querySelector('trk > name, rte > name, gpx > metadata > name, gpx > name');
+  if (nameEl) name = nameEl.textContent.trim();
+  return { pts, name };
+}
+
+function haversine(a, b){
+  const R = 6371000, r = Math.PI/180;
+  const dLat = (b.lat-a.lat)*r, dLon = (b.lon-a.lon)*r;
+  const la1 = a.lat*r, la2 = b.lat*r;
+  const h = Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+
+function analyze(pts){
+  const cum = [0];
+  for (let i=1;i<pts.length;i++) cum.push(cum[i-1] + haversine(pts[i-1], pts[i]));
+  const total = cum[cum.length-1];
+
+  const raw = pts.map(p => p.ele);
+  const hasEle = raw.some(e => e!=null && isFinite(e));
+  let smooth = [], gain = 0, loss = 0, maxE = 0, minE = 0;
+
+  if (hasEle){
+    let last = null;
+    const filled = raw.map(e => { if (e!=null && isFinite(e)) { last = e; return e; } return last; });
+    for (let i=0;i<filled.length;i++) if (filled[i]==null) filled[i] = last ?? 0;
+    const w = 4;
+    smooth = filled.map((_, i) => {
+      let s=0,c=0;
+      for (let j=Math.max(0,i-w); j<=Math.min(filled.length-1,i+w); j++){ s+=filled[j]; c++; }
+      return s/c;
+    });
+    maxE = Math.max(...smooth); minE = Math.min(...smooth);
+    for (let i=1;i<smooth.length;i++){ const d = smooth[i]-smooth[i-1]; if (d>0) gain+=d; else loss-=d; }
+  }
+  return { pts, cum, total, smooth, hasEle, gain, loss, maxE, minE };
+}
+
+/* ---------------- rendering: map ---------------- */
+let MAP=null, TILE=null;
+function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function tileUrl(){
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  return 'https://{s}.basemaps.cartocdn.com/' + (dark ? 'dark_all' : 'light_all') + '/{z}/{x}/{y}{r}.png';
+}
+function drawMap(t){
+  const accent = cssVar('--route'), good = cssVar('--good');
+  const ring = cssVar('--panel');
+  if (MAP){ MAP.remove(); MAP = null; TILE = null; }
+  MAP = L.map('map', { zoomControl:true, attributionControl:false });
+  TILE = L.tileLayer(tileUrl(), { maxZoom:19, subdomains:'abcd' }).addTo(MAP);
+  const latlngs = t.pts.map(p => [p.lat, p.lon]);
+  const line = L.polyline(latlngs, { color:accent, weight:4, opacity:.95 }).addTo(MAP);
+  L.circleMarker(latlngs[0], { radius:6, color:ring, fillColor:good, fillOpacity:1, weight:2 }).addTo(MAP);
+  L.circleMarker(latlngs[latlngs.length-1], { radius:6, color:ring, fillColor:accent, fillOpacity:1, weight:2 }).addTo(MAP);
+  MAP.fitBounds(line.getBounds(), { padding:[24,24] });
+  setTimeout(()=>MAP.invalidateSize(), 200);
+}
+
+/* ---------------- rendering: stats ---------------- */
+function drawStats(t){
+  const km = (t.total/1000);
+  const estH = km / (parseFloat(document.getElementById('speed').value)||24);
+  const cells = [
+    ['Distanz', km.toFixed(1), 'km'],
+    ['Höhenmeter', t.hasEle ? Math.round(t.gain).toLocaleString('de-DE') : '–', 'm'],
+    ['Höchster Pkt.', t.hasEle ? Math.round(t.maxE).toLocaleString('de-DE') : '–', 'm'],
+    ['Fahrzeit ≈', estH.toFixed(1), 'h']
+  ];
+  document.getElementById('stats').innerHTML = cells.map(c =>
+    `<div class="stat"><div class="k">${c[0]}</div><div class="v">${c[1]}<small>${c[2]}</small></div></div>`
+  ).join('');
+}
+
+/* ---------------- rendering: elevation profile ---------------- */
+function drawProfile(t, feed){
+  const box = document.getElementById('profileBox');
+  if (!t.hasEle){
+    box.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:18px 4px">Diese GPX-Datei enthält keine Höhendaten – das Profil kann nicht gezeichnet werden. Distanz und Plan funktionieren trotzdem.</div>';
+    return;
+  }
+  const W=1000, H=300, padB=34, padT=18, padL=8, padR=8;
+  const COL_LINE = cssVar('--amber'), COL_GRID = 'rgba(255,255,255,0.10)', COL_PIN = cssVar('--route');
+  const n = t.smooth.length;
+  const x = i => padL + (t.cum[i]/t.total) * (W-padL-padR);
+  const eRange = Math.max(1, t.maxE - t.minE);
+  const y = e => (H-padB) - ((e - t.minE)/eRange) * (H-padB-padT);
+
+  let d = `M ${x(0).toFixed(1)} ${y(t.smooth[0]).toFixed(1)}`;
+  for (let i=1;i<n;i++) d += ` L ${x(i).toFixed(1)} ${y(t.smooth[i]).toFixed(1)}`;
+  const area = d + ` L ${x(n-1).toFixed(1)} ${H-padB} L ${x(0).toFixed(1)} ${H-padB} Z`;
+
+  // horizontal grid lines (elevation)
+  const grids = [];
+  const steps = 4;
+  for (let s=0;s<=steps;s++){
+    const e = t.minE + (eRange*s/steps);
+    const yy = y(e);
+    grids.push(`<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${W-padR}" y2="${yy.toFixed(1)}" stroke="${COL_GRID}" stroke-width="1"/>`);
+    grids.push(`<text class="axis-lbl" x="${W-padR}" y="${(yy-4).toFixed(1)}" text-anchor="end">${Math.round(e)} m</text>`);
+  }
+  // distance ticks
+  const kmTotal = t.total/1000;
+  const tickStep = kmTotal>400?100:kmTotal>150?50:kmTotal>60?20:kmTotal>20?10:5;
+  const ticks=[];
+  for (let km=0; km<=kmTotal; km+=tickStep){
+    const idx = nearestIdxForKm(t, km);
+    const xx = x(idx);
+    ticks.push(`<text class="axis-lbl" x="${xx.toFixed(1)}" y="${H-14}" text-anchor="middle">${km}</text>`);
+  }
+  ticks.push(`<text class="axis-lbl" x="${(W-padR)}" y="${H-14}" text-anchor="end" style="fill:var(--muted)">km</text>`);
+
+  // feed-point markers as a distortion-free HTML overlay
+  const xd = D => padL + (D/t.total) * (W-padL-padR);   // dist(m) → viewBox x
+  const placements = (feed && feed.placements) ? feed.placements : [];
+  let markers = '';
+  placements.forEach((p, i) => {
+    const leftPct = (xd(p.dist)/W) * 100;
+    const topPx = Math.max(7, Math.min(H-padB, y(p.ele)));
+    const low = p.confidence === 'low';
+    markers += `<button type="button" class="fp-marker ${fpColorClass(p.category)}${low?' low':''}" data-i="${i}" style="left:${leftPct.toFixed(2)}%;top:${topPx.toFixed(1)}px">${fpIcon(p.category, low)}</button>`;
+  });
+  const overlay = placements.length ? `<div class="fp-overlay">${markers}</div>` : '';
+  const legend = placements.length ? fpLegendHtml() : '';
+
+  box.innerHTML = `<div class="prof-stack"><svg class="profile" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:300px">
+    <defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${COL_LINE}" stop-opacity=".34"/>
+      <stop offset="100%" stop-color="${COL_LINE}" stop-opacity="0"/>
+    </linearGradient></defs>
+    ${grids.join('')}
+    <path d="${area}" fill="url(#fill)"/>
+    <path d="${d}" fill="none" stroke="${COL_LINE}" stroke-width="2"/>
+    ${ticks.join('')}
+  </svg>${overlay}</div>${legend}`;
+
+  // marker tooltips
+  if (placements.length){
+    const tip = document.getElementById('tip');
+    box.querySelectorAll('.fp-marker').forEach(el => {
+      const p = placements[+el.dataset.i];
+      el.addEventListener('mouseenter', () => {
+        tip.innerHTML = `<b>${fpLabel(p.category)} · km ${(p.dist/1000).toFixed(1)} · ${hhmm(p.t)}</b><br>${escapeHtml(p.reason)}${p.confidence==='low'?' · unsicher':''}`;
+        tip.style.display='block';
+      });
+      el.addEventListener('mousemove', e => { tip.style.left=(e.clientX+14)+'px'; tip.style.top=(e.clientY+14)+'px'; });
+      el.addEventListener('mouseleave', () => { tip.style.display='none'; });
+    });
+  }
+}
+
+/* feed-marker helpers (shared by profile + schedule list) */
+function fpColorClass(cat){ return cat==='gel' ? 'gel' : cat==='bar' ? 'bar' : 'food'; }
+function fpLabel(cat){ return cat==='gel' ? 'Gel' : cat==='bar' ? 'Riegel' : 'Obst / Real Food'; }
+function fpIcon(cat, low){
+  const fill = low ? 'none' : 'currentColor';
+  const stroke = low ? 'currentColor' : 'var(--panel)';
+  const sw = low ? 2 : 1.4;
+  if (cat==='gel')  return `<svg class="fpi" viewBox="0 0 16 16"><path d="M8 1.6 L14.5 14 L1.5 14 Z" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/></svg>`;
+  if (cat==='bar')  return `<svg class="fpi" viewBox="0 0 16 16"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="3" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/></svg>`;
+  return `<svg class="fpi" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.3" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/></svg>`;
+}
+function fpLegendHtml(){
+  return `<div class="fp-legend">
+    <span><i class="lg-ic gel">${fpIcon('gel',false)}</i> Gel · vor Anstieg</span>
+    <span><i class="lg-ic bar">${fpIcon('bar',false)}</i> Riegel</span>
+    <span><i class="lg-ic food">${fpIcon('realfood',false)}</i> Obst / Real Food</span>
+    <span><i class="lg-ic dim">${fpIcon('realfood',true)}</i> unsicher (reine Zeit)</span>
+  </div>`;
+}
+function hhmm(sec){ const m=Math.max(0,Math.round(sec/60)); return `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')} h`; }
+function nearestIdxForKm(t, km){
+  const target = km*1000;
+  let lo=0, hi=t.cum.length-1;
+  while (lo<hi){ const mid=(lo+hi)>>1; if (t.cum[mid]<target) lo=mid+1; else hi=mid; }
+  return Math.max(0, Math.min(t.cum.length-1, lo));
+}
+function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ---------------- file handling ---------------- */
+function handleFile(file){
+  const intro = document.getElementById('introMsg');
+  intro.innerHTML='';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const { pts, name } = parseGPX(reader.result);
+      if (pts.length < 2) throw new Error('In der Datei wurden keine Streckenpunkte gefunden.');
+      TRACK = analyze(pts);
+      TRACK.name = name || file.name.replace(/\.gpx$/i,'');
+      TRACK.rawGpx = reader.result;     // keep original file so export preserves the track
+      TRACK.fileName = file.name;
+      document.getElementById('intro').style.display='none';
+      document.getElementById('app').style.display='block';
+      document.getElementById('result').style.display='none';
+      document.getElementById('trackName').textContent = TRACK.name;
+      drawMap(TRACK);
+      drawStats(TRACK);
+      drawProfile(TRACK, null);
+    }catch(err){
+      intro.innerHTML = `<div class="msg err"><strong>Datei konnte nicht gelesen werden.</strong><br>${escapeHtml(err.message)} Exportiere den Track als <em>.gpx</em> und versuch es erneut.</div>`;
+    }
+  };
+  reader.onerror = ()=>{ intro.innerHTML='<div class="msg err">Die Datei ließ sich nicht öffnen. Versuch es bitte erneut.</div>'; };
+  reader.readAsText(file);
+}
+
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e=>{ e.preventDefault(); drop.classList.add('hot'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e=>{ e.preventDefault(); drop.classList.remove('hot'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+
+/* ---------------- all upload CTAs ---------------- */
+document.querySelectorAll('.js-upload').forEach(el => el.addEventListener('click', () => fileInput.click()));
+
+/* ---------------- light / dark theme ---------------- */
+(function(){
+  const btn = document.getElementById('themeBtn');
+  const ico = document.getElementById('themeIco');
+  const txt = document.getElementById('themeTxt');
+  function setTheme(mode){
+    document.documentElement.setAttribute('data-theme', mode);
+    const dark = mode === 'dark';
+    if (ico) ico.textContent = dark ? '☀' : '◐';
+    if (txt) txt.textContent = dark ? 'Hell' : 'Dunkel';
+    if (MAP && TILE) TILE.setUrl(tileUrl());
+  }
+  setTheme('light');
+  if (btn) btn.addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+  });
+})();
+
+/* ---------------- bike style picker ---------------- */
+document.getElementById('styles').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if (!b) return;
+  document.querySelectorAll('#styles button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  BIKE_STYLE = b.dataset.style;
+});
+
+/* recompute fahrzeit when speed changes */
+document.getElementById('speed').addEventListener('input', ()=>{ if (TRACK) drawStats(TRACK); });
+
+/* ---------------- the nutrition plan (built-in, runs locally) ---------------- */
+document.getElementById('go').addEventListener('click', requestPlan);
+
+// rolling resistance & drag area per riding style
+const STYLE_PARAMS = {
+  Gravel:  { crr:0.008, cda:0.45 },
+  MTB:     { crr:0.012, cda:0.50 },
+  Rennrad: { crr:0.004, cda:0.32 }
+};
+
+/* ---------------- product catalogue ---------------- */
+const CATS = ['drink','gel','bar','fruit'];
+const CAT_META = {
+  drink: { label:'Drink-Mix',       sub:'in die Flaschen' },
+  gel:   { label:'Gels',            sub:'schnell verfügbar' },
+  bar:   { label:'Riegel & Festes', sub:'sättigt länger' },
+  fruit: { label:'Obst & Natur',    sub:'leicht verdaulich' }
+};
+// default weighting per category (relative; the user can change these live)
+const CAT_WEIGHT_DEFAULT = { drink:30, gel:30, bar:25, fruit:15 };
+
+const PRODUCTS = [
+  // drink mix (carbs per serving / Portion)
+  { id:'drink_std',  cat:'drink', name:'Sportgetränk-Pulver',  carbsPerUnit:30, unit:'Portionen', note:'Kohlenhydrate + Natrium in der Flasche – die Basis' },
+  { id:'drink_high', cat:'drink', name:'High-Carb-Drink-Mix',  carbsPerUnit:80, unit:'Portionen', note:'viele Kohlenhydrate flüssig, schont den Magen' },
+  { id:'drink_iso',  cat:'drink', name:'Iso-Getränk (leicht)', carbsPerUnit:18, unit:'Portionen', note:'dünner gemischt, gut bei Hitze' },
+  // gels
+  { id:'gel_std',  cat:'gel', name:'Energy-Gel (klassisch)', carbsPerUnit:22, unit:'Stk', note:'schnell verfügbar' },
+  { id:'gel_high', cat:'gel', name:'High-Carb-Gel',          carbsPerUnit:25, unit:'Stk', note:'konzentriert, Glucose-Fructose' },
+  { id:'gel_caf',  cat:'gel', name:'Koffein-Gel',            carbsPerUnit:22, unit:'Stk', note:'mit Koffein – sparsam, eher zweite Hälfte' },
+  { id:'gel_iso',  cat:'gel', name:'Iso-Gel (flüssiger)',    carbsPerUnit:22, unit:'Stk', note:'ohne extra Wasser einnehmbar' },
+  // bars & solid food
+  { id:'bar_energy', cat:'bar', name:'Energieriegel',      carbsPerUnit:40, unit:'Stk', note:'feste Nahrung, hält länger satt' },
+  { id:'bar_high',   cat:'bar', name:'High-Carb-Riegel',   carbsPerUnit:45, unit:'Stk', note:'viele Kohlenhydrate, kompakt' },
+  { id:'bar_oat',    cat:'bar', name:'Müsli-/Haferriegel',  carbsPerUnit:25, unit:'Stk', note:'leichter, alltagstauglich' },
+  { id:'bar_rice',   cat:'bar', name:'Reiskuchen (herzhaft)', carbsPerUnit:30, unit:'Stk', note:'gegen Süß-Überdruss auf langen Distanzen' },
+  // fruit & natural
+  { id:'fr_banana', cat:'fruit', name:'Banane',             carbsPerUnit:25, unit:'Stk',       note:'leicht verdaulich, etwas Kalium' },
+  { id:'fr_dates',  cat:'fruit', name:'Datteln',            carbsPerUnit:18, unit:'Stk',       note:'sehr zuckerreich, klein & praktisch' },
+  { id:'fr_apple',  cat:'fruit', name:'Apfel',              carbsPerUnit:20, unit:'Stk',       note:'frisch, mehr Ballaststoffe' },
+  { id:'fr_raisin', cat:'fruit', name:'Rosinen (Handvoll)', carbsPerUnit:30, unit:'Portionen', note:'kompakte Energie' },
+  // custom entries — carb value set by the user
+  { id:'drink_custom', cat:'drink', name:'Individuell', carbsPerUnit:30, unit:'Portionen', note:'eigener Kohlenhydratwert', custom:true },
+  { id:'gel_custom',   cat:'gel',   name:'Individuell', carbsPerUnit:25, unit:'Stk',       note:'eigener Kohlenhydratwert', custom:true },
+  { id:'bar_custom',   cat:'bar',   name:'Individuell', carbsPerUnit:40, unit:'Stk',       note:'eigener Kohlenhydratwert', custom:true },
+  { id:'fruit_custom', cat:'fruit', name:'Individuell', carbsPerUnit:25, unit:'Stk',       note:'eigener Kohlenhydratwert', custom:true }
+];
+
+// user-defined carb value (g per unit) for each category's "Individuell" entry
+const CUSTOM_CARB = { drink:0, gel:0, bar:0, fruit:0 };
+// effective carbs per unit for a product (custom entries read from CUSTOM_CARB)
+function prodCarbs(prod){ return prod.custom ? (CUSTOM_CARB[prod.cat] || 0) : prod.carbsPerUnit; }
+
+// which products are active + per-category share (persists across plan regenerations)
+const SELECTION = {
+  drink: { on:true, weight:30, ids:['drink_std'] },
+  gel:   { on:true, weight:30, ids:['gel_std'] },
+  bar:   { on:true, weight:25, ids:['bar_energy'] },
+  fruit: { on:true, weight:15, ids:['fr_banana'] }
+};
+
+// categories that actually contribute carbs right now
+function activeCats(selection){
+  selection = selection || SELECTION;
+  return CATS.filter(c => selection[c].on && selection[c].ids.length > 0 && selection[c].weight > 0);
+}
+// effective percentage per category (normalised across active ones)
+function effectivePct(selection){
+  selection = selection || SELECTION;
+  const active = activeCats(selection);
+  const wsum = active.reduce((s,c)=> s + selection[c].weight, 0);
+  const pct = {};
+  CATS.forEach(c => { pct[c] = (active.includes(c) && wsum>0) ? Math.round(selection[c].weight/wsum*100) : 0; });
+  return pct;
+}
+
+// distribute the carb target across active categories (by their share) and selected products
+function buildFoodList(totalCarb, selection){
+  selection = selection || SELECTION;
+  const active = activeCats(selection);
+  const wsum = active.reduce((s,c)=> s + selection[c].weight, 0);
+  if (wsum <= 0) return [];
+  const list = [];
+  for (const c of active){
+    const catCarb = totalCarb * selection[c].weight / wsum;
+    const ids = selection[c].ids;
+    const per = catCarb / ids.length;
+    for (const id of ids){
+      const prod = PRODUCTS.find(p => p.id === id);
+      if (!prod) continue;
+      const cu = prodCarbs(prod);
+      if (cu <= 0) continue;
+      let units = Math.round(per / cu);
+      if (units < 1 && per >= cu*0.4) units = 1;   // keep at least one if the share is meaningful
+      if (units < 1) continue;
+      const name = prod.custom ? `Individuell (${cu} g)` : prod.name;
+      list.push({ item:name, menge:`${units} ${prod.unit}`, kh_g:units*cu, hinweis:prod.note, cat:prod.cat, units });
+    }
+  }
+  return list;
+}
+
+/* =====================================================================
+   Feed-point planner — pure, offline, framework-agnostic placement logic.
+   Adapted from feedPointPlanner.js spec: gels before climbs, bars & real
+   food in calm sections after climbs, drinks linear over time.
+   ===================================================================== */
+const FeedPlanner = (function(){
+  const DEFAULT_CONFIG = {
+    startBufferSec: 600,
+    endCutoff: { frac: 0.05, minSec: 600, maxSec: 2700 },
+    climb: { minGainShort: 50, minGainLong: 100, shortHours: 2.5, longHours: 8, dropTolerance: 12 },
+    window: { fraction: 0.4 },
+    gel: { leadBaseMin: 5, leadRefHm: 50, leadPerHmDivisor: 25, leadMaxMin: 20, maxLookaheadSec: 1200 },
+    bar: { afterClimbWindowSec: 300, steepPenaltyGrad: 0.04 },
+    minGapSec: 240,
+  };
+  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+
+  function computeGradients(route){
+    const g = new Array(route.length);
+    for (let i = 0; i < route.length - 1; i++){
+      const dd = route[i + 1].dist - route[i].dist;
+      g[i] = dd > 0 ? (route[i + 1].ele - route[i].ele) / dd : 0;
+    }
+    g[route.length - 1] = g[route.length - 2] ?? 0;
+    return g;
+  }
+  function climbMinGain(durationSec, c){
+    const h = durationSec / 3600;
+    if (h <= c.shortHours) return c.minGainShort;
+    if (h >= c.longHours) return c.minGainLong;
+    const f = (h - c.shortHours) / (c.longHours - c.shortHours);
+    return c.minGainShort + f * (c.minGainLong - c.minGainShort);
+  }
+  function timeToPoint(route, t){
+    if (t <= route[0].t) return { ...route[0], idx: 0 };
+    const last = route.length - 1;
+    if (t >= route[last].t) return { ...route[last], idx: last };
+    let lo = 0, hi = last;
+    while (hi - lo > 1){ const mid = (lo + hi) >> 1; if (route[mid].t < t) lo = mid; else hi = mid; }
+    const a = route[lo], b = route[hi];
+    const f = (t - a.t) / (b.t - a.t || 1);
+    return { dist: a.dist + f*(b.dist-a.dist), ele: a.ele + f*(b.ele-a.ele), t, idx: f < 0.5 ? lo : hi };
+  }
+  function indexRange(route, tStart, tEnd){
+    let start = 0, end = route.length - 1;
+    while (start < route.length && route[start].t < tStart) start++;
+    while (end > 0 && route[end].t > tEnd) end--;
+    return [clamp(start, 0, route.length-1), clamp(end, 0, route.length-1)];
+  }
+  function buildClimb(route, startIdx, topIdx){
+    const gain = route[topIdx].ele - route[startIdx].ele;
+    const length = route[topIdx].dist - route[startIdx].dist;
+    const avgGrad = length > 0 ? gain / length : 0;
+    return { startIdx, topIdx, startTime: route[startIdx].t, topTime: route[topIdx].t,
+             startDist: route[startIdx].dist, topDist: route[topIdx].dist,
+             gain, length, avgGrad, weight: gain * avgGrad * length };
+  }
+  function detectClimbs(route, durationSec, cfg){
+    const minGain = climbMinGain(durationSec, cfg.climb);
+    const climbs = []; const n = route.length; let i = 0;
+    while (i < n - 1){
+      if (route[i+1].ele - route[i].ele <= 0){ i++; continue; }
+      const start = i; let topIdx = i, topEle = route[i].ele; let j = i + 1;
+      while (j < n){
+        if (route[j].ele > topEle){ topEle = route[j].ele; topIdx = j; }
+        if (topEle - route[j].ele > cfg.climb.dropTolerance) break;
+        j++;
+      }
+      if (route[topIdx].ele - route[start].ele >= minGain) climbs.push(buildClimb(route, start, topIdx));
+      i = Math.max(topIdx, start + 1);
+    }
+    return climbs;
+  }
+  function idealTimes(count, activeStart, activeEnd){
+    if (count <= 0) return { times: [], dt: 0 };
+    const span = activeEnd - activeStart; const dt = span / count;
+    const times = Array.from({ length: count }, (_, i) => activeStart + (i + 0.5) * dt);
+    return { times, dt };
+  }
+  function leadSecForGain(gain, c){
+    const min = clamp(c.leadBaseMin + (gain - c.leadRefHm) / c.leadPerHmDivisor, c.leadBaseMin, c.leadMaxMin);
+    return min * 60;
+  }
+  function placeGel(idealT, dt, route, climbs, cfg){
+    const win = cfg.window.fraction * dt;
+    const tStart = idealT - win, tEnd = idealT + win;
+    let best = null;
+    for (const cl of climbs){
+      if (cl.startTime < tStart) continue;
+      if (cl.startTime > tEnd + cfg.gel.maxLookaheadSec) continue;
+      const lead = leadSecForGain(cl.gain, cfg.gel);
+      const desired = cl.startTime - lead;
+      const placed = clamp(desired, tStart, tEnd);
+      const miss = Math.abs(placed - desired);
+      const proximity = 1 / (1 + miss / 300);
+      const score = cl.weight * proximity;
+      if (!best || score > best.score) best = { time: placed, score, climb: cl, reason: 'vor Anstieg' };
+    }
+    if (best){ const p = timeToPoint(route, best.time); return { ...p, reason: best.reason, climbRef: best.climb, confidence: 'high' }; }
+    const p = timeToPoint(route, idealT);
+    return { ...p, reason: 'gleichmäßig (kein Anstieg im Fenster)', confidence: 'low' };
+  }
+  function placeCalm(idealT, dt, route, grad, climbs, cfg){
+    const win = cfg.window.fraction * dt;
+    const [a, b] = indexRange(route, idealT - win, idealT + win);
+    let best = null;
+    for (let i = a; i <= b; i++){
+      const g = grad[i]; let score = -g;
+      let reason = g <= 0.005 ? 'flach/abfallend' : 'ruhigster Punkt';
+      for (const cl of climbs){
+        const dtTop = route[i].t - cl.topTime;
+        if (dtTop >= 0 && dtTop <= cfg.bar.afterClimbWindowSec){ score += 0.03; reason = 'nach Anstieg'; break; }
+      }
+      if (g > cfg.bar.steepPenaltyGrad) score -= (g - cfg.bar.steepPenaltyGrad) * 2;
+      if (!best || score > best.score) best = { idx: i, score, reason };
+    }
+    if (!best){ const p = timeToPoint(route, idealT); return { ...p, reason: 'gleichmäßig', confidence: 'low' }; }
+    const p = route[best.idx];
+    return { dist: p.dist, ele: p.ele, t: p.t, idx: best.idx, reason: best.reason,
+             confidence: grad[best.idx] <= cfg.bar.steepPenaltyGrad ? 'high' : 'low' };
+  }
+  function resolveMinGap(placements, cfg, activeEnd){
+    const sorted = [...placements].sort((x, y) => x.t - y.t);
+    for (let i = 1; i < sorted.length; i++){
+      const gap = sorted[i].t - sorted[i-1].t;
+      if (gap < cfg.minGapSec){
+        const shift = cfg.minGapSec - gap;
+        sorted[i].t = Math.min(sorted[i].t + shift, activeEnd);
+        sorted[i].nudged = true;
+      }
+    }
+    return sorted;
+  }
+  function planFeedPoints(route, plan, userConfig = {}){
+    const cfg = { ...DEFAULT_CONFIG, ...userConfig };
+    if (!route || route.length < 2) throw new Error('route braucht >= 2 Punkte');
+    const grad = computeGradients(route);
+    const durationSec = route[route.length - 1].t;
+    const endCut = clamp(durationSec * cfg.endCutoff.frac, cfg.endCutoff.minSec, cfg.endCutoff.maxSec);
+    const activeStart = Math.min(cfg.startBufferSec, durationSec * 0.4);
+    const activeEnd = Math.max(activeStart + 1, durationSec - endCut);
+    const climbs = detectClimbs(route, durationSec, cfg);
+    const placements = []; const items = plan.items || {};
+    { const { times, dt } = idealTimes(items.gel || 0, activeStart, activeEnd);
+      times.forEach((t, i) => { const p = placeGel(t, dt, route, climbs, cfg); placements.push({ category: 'gel', index: i+1, idealT: t, ...p }); }); }
+    for (const cat of ['bar', 'realfood']){
+      const { times, dt } = idealTimes(items[cat] || 0, activeStart, activeEnd);
+      times.forEach((t, i) => { const p = placeCalm(t, dt, route, grad, climbs, cfg); placements.push({ category: cat, index: i+1, idealT: t, ...p }); });
+    }
+    const finalPlacements = resolveMinGap(placements, cfg, activeEnd);
+    return { placements: finalPlacements, climbs, window: { start: activeStart, end: activeEnd } };
+  }
+  function distributeDrink(totalMl, durationSec, intervalSec = 600){
+    const checkpoints = Math.max(1, Math.round(durationSec / intervalSec));
+    const mlPer = totalMl / checkpoints;
+    return Array.from({ length: checkpoints }, (_, i) => ({ t: (i+1)*(durationSec/checkpoints), ml: Math.round(mlPer), cumulativeMl: Math.round(mlPer*(i+1)) }));
+  }
+  return { DEFAULT_CONFIG, planFeedPoints, distributeDrink };
+})();
+
+/* adapter: TRACK → route [{dist, ele, t}] (constant-speed time, downsampled ~75 m) */
+function buildFeedRoute(track, speed){
+  const v = Math.max(1, speed) / 3.6;            // m/s
+  const route = []; let lastDist = -Infinity;
+  for (let i = 0; i < track.pts.length; i++){
+    const d = track.cum[i];
+    if (i === 0 || i === track.pts.length-1 || d - lastDist >= 75){
+      route.push({ dist: d, ele: track.smooth[i], t: d / v });
+      lastDist = d;
+    }
+  }
+  return route;
+}
+function computeFeedPlan(track, counts, speed){
+  if (!track || !track.hasEle || !track.smooth || track.smooth.length < 2) return { placements: [], climbs: [] };
+  const route = buildFeedRoute(track, speed);
+  if (route.length < 2) return { placements: [], climbs: [] };
+  try { return FeedPlanner.planFeedPoints(route, { items: counts || {} }); }
+  catch(_) { return { placements: [], climbs: [] }; }
+}
+
+/* sum solid-item counts per planner category from the current food list */
+function feedCounts(plan){
+  const c = { gel:0, bar:0, realfood:0 };
+  ((plan && plan.lebensmittel) || []).forEach(f => {
+    const u = f.units || parseInt(f.menge, 10) || 0;
+    if (f.cat === 'gel') c.gel += u;
+    else if (f.cat === 'bar') c.bar += u;
+    else if (f.cat === 'fruit') c.realfood += u;
+  });
+  return c;
+}
+
+/* schedule list: drink line + each solid placement, sorted by time */
+function feedScheduleHtml(feed){
+  let html = '';
+  if (PLAN && (PLAN.fluessigkeit_pro_stunde_ml || 0) > 0){
+    html += `<li class="drink"><span class="t">laufend</span><span class="act"><b>Trinken</b><span class="why">gleichmäßig ~${fmtNum(PLAN.fluessigkeit_pro_stunde_ml)} ml/Std., etwa alle 10 min ein Schluck</span></span></li>`;
+  }
+  const ps = [...((feed && feed.placements) || [])].sort((a,b) => a.t - b.t);
+  if (!ps.length){
+    const hasEle = TRACK && TRACK.hasEle;
+    html += `<li><span class="t">—</span><span class="act"><b>Keine festen Verpflegungspunkte</b><span class="why">${hasEle ? 'Wähle Gels, Riegel oder Obst, um Punkte auf der Strecke zu setzen.' : 'Diese GPX-Datei enthält keine Höhendaten – feste Punkte können nicht verortet werden.'}</span></span></li>`;
+    return html;
+  }
+  ps.forEach(p => {
+    const km = (p.dist/1000).toFixed(1);
+    const low = p.confidence === 'low';
+    html += `<li><span class="t">km ${km} · ${hhmm(p.t)}</span><span class="act"><b><i class="lg-ic ${fpColorClass(p.category)}">${fpIcon(p.category,false)}</i>${fpLabel(p.category)}</b><span class="why">${escapeHtml(p.reason)}${low?' · <em class="low-badge">unsicher</em>':''}${p.nudged?' · zeitlich entzerrt':''}</span></span></li>`;
+  });
+  return html;
+}
+
+/* recompute feed points from the current plan and refresh profile + list */
+function refreshFeed(){
+  if (!TRACK) return;
+  const speed = PLAN_INPUTS ? PLAN_INPUTS.speed : (parseFloat(document.getElementById('speed').value) || 24);
+  CURRENT_FEED = computeFeedPlan(TRACK, feedCounts(PLAN), speed);
+  drawProfile(TRACK, CURRENT_FEED);
+  const sched = document.getElementById('tlBody');
+  if (sched) sched.innerHTML = feedScheduleHtml(CURRENT_FEED);
+  updateDownloadBtn();
+}
+
+/* =====================================================================
+   GPX export — write the computed feed points into the uploaded GPX as
+   waypoints (each one says WHAT to consume) and download the file.
+   ===================================================================== */
+
+/* planner category → food-list category */
+function feedCatToFoodCat(cat){ return cat === 'realfood' ? 'fruit' : cat; }
+
+/* ordered single servings for one planner category, taken from the current
+   food list — each serving carries the concrete product + carbs per unit */
+function servingsForCategory(feedCat){
+  const foodCat = feedCatToFoodCat(feedCat);
+  const servings = [];
+  ((PLAN && PLAN.lebensmittel) || []).forEach(f => {
+    if (f.cat !== foodCat) return;
+    const units = f.units || parseInt(f.menge, 10) || 0;
+    const per = units > 0 ? (f.kh_g / units) : (f.kh_g || 0);
+    for (let i = 0; i < units; i++) servings.push({ name: f.item, carbs: per, note: f.hinweis || '' });
+  });
+  return servings;
+}
+
+/* attach the concrete product (what to eat) to every placement */
+function enrichPlacements(feed){
+  const byCat = {
+    gel: servingsForCategory('gel'),
+    bar: servingsForCategory('bar'),
+    realfood: servingsForCategory('realfood')
+  };
+  return [...((feed && feed.placements) || [])]
+    .sort((a, b) => a.t - b.t)
+    .map(p => {
+      const list = byCat[p.category] || [];
+      const serving = list[(p.index || 1) - 1] || null;
+      return { ...p, serving };
+    });
+}
+
+/* distance along route → coordinates on the original track */
+function latLonForDist(distMeters){
+  const idx = nearestIdxForKm(TRACK, distMeters / 1000);
+  const p = TRACK && TRACK.pts ? TRACK.pts[idx] : null;
+  return p ? { lat: p.lat, lon: p.lon, ele: p.ele } : null;
+}
+
+/* one waypoint's worth of data (name + description say what to eat) */
+function feedWaypointData(p, n){
+  const ll = latLonForDist(p.dist);
+  if (!ll) return null;
+  const km = (p.dist / 1000).toFixed(1);
+  const time = hhmm(p.t);
+  const serving = p.serving;
+  const carbs = serving ? Math.round(serving.carbs) : null;
+  const prod = serving ? serving.name : fpLabel(p.category);
+  const eat = carbs != null ? `${prod} · ${carbs} g KH` : prod;
+  const eleVal = (ll.ele != null && isFinite(ll.ele)) ? ll.ele
+               : (isFinite(p.ele) ? p.ele : null);
+  let desc = `Bei km ${km} (~${time}): ${eat}.`;
+  if (serving && serving.note) desc += ` ${serving.note}.`;
+  if (p.reason) desc += ` (${p.reason})`;
+  if (p.confidence === 'low') desc += ' [Position unsicher – grobe Zeitschätzung]';
+  return { lat: ll.lat, lon: ll.lon, ele: eleVal, name: `VP${n} · ${eat}`, desc };
+}
+
+/* build GPX string: reuse the uploaded file and inject <wpt> elements */
+function buildGpxWithWaypoints(){
+  if (!TRACK) return null;
+  const placements = enrichPlacements(CURRENT_FEED);
+  if (!placements.length) return null;
+
+  const xml = TRACK.rawGpx
+    ? new DOMParser().parseFromString(TRACK.rawGpx, 'application/xml')
+    : null;
+  const gpx = xml ? xml.querySelector('gpx') : null;
+
+  // fall back to a freshly built GPX if the original can't be reused
+  if (!xml || xml.querySelector('parsererror') || !gpx) return buildFreshGpx(placements);
+
+  const ns = gpx.namespaceURI || 'http://www.topografix.com/GPX/1/1';
+  const make = tag => xml.createElementNS(ns, tag);
+  const firstRoute = gpx.querySelector('rte, trk');   // schema: wpt before rte/trk
+
+  placements.forEach((p, i) => {
+    const d = feedWaypointData(p, i + 1);
+    if (!d) return;
+    const wpt = make('wpt');
+    wpt.setAttribute('lat', d.lat.toFixed(6));
+    wpt.setAttribute('lon', d.lon.toFixed(6));
+    if (d.ele != null){ const e = make('ele'); e.textContent = Math.round(d.ele); wpt.appendChild(e); }
+    const nm = make('name'); nm.textContent = d.name; wpt.appendChild(nm);
+    const cm = make('cmt');  cm.textContent = d.desc; wpt.appendChild(cm);
+    const ds = make('desc'); ds.textContent = d.desc; wpt.appendChild(ds);
+    const sy = make('sym');  sy.textContent = 'Restaurant'; wpt.appendChild(sy);
+    const ty = make('type'); ty.textContent = 'Verpflegung'; wpt.appendChild(ty);
+    if (firstRoute) gpx.insertBefore(wpt, firstRoute); else gpx.appendChild(wpt);
+  });
+
+  return new XMLSerializer().serializeToString(xml);
+}
+
+/* fallback: assemble a minimal GPX from the parsed track + waypoints */
+function buildFreshGpx(placements){
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
+    c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+  const wpts = placements.map((p, i) => {
+    const d = feedWaypointData(p, i + 1);
+    if (!d) return '';
+    const ele = d.ele != null ? `<ele>${Math.round(d.ele)}</ele>` : '';
+    return `  <wpt lat="${d.lat.toFixed(6)}" lon="${d.lon.toFixed(6)}">${ele}` +
+           `<name>${esc(d.name)}</name><cmt>${esc(d.desc)}</cmt><desc>${esc(d.desc)}</desc>` +
+           `<sym>Restaurant</sym><type>Verpflegung</type></wpt>\n`;
+  }).join('');
+  const trkpts = TRACK.pts.map(p => {
+    const ele = (p.ele != null && isFinite(p.ele)) ? `<ele>${Math.round(p.ele)}</ele>` : '';
+    return `<trkpt lat="${p.lat.toFixed(6)}" lon="${p.lon.toFixed(6)}">${ele}</trkpt>`;
+  }).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n` +
+         `<gpx version="1.1" creator="FUELENOUGH" xmlns="http://www.topografix.com/GPX/1/1">\n` +
+         `${wpts}  <trk><name>${esc(TRACK.name || 'Strecke')}</name><trkseg>${trkpts}</trkseg></trk>\n</gpx>`;
+}
+
+/* trigger the download */
+function downloadGpx(){
+  const gpxStr = buildGpxWithWaypoints();
+  if (!gpxStr) return;
+  const blob = new Blob([gpxStr], { type: 'application/gpx+xml' });
+  const url = URL.createObjectURL(blob);
+  const base = ((TRACK.name || (TRACK.fileName || 'strecke').replace(/\.gpx$/i, '')) || 'strecke')
+    .replace(/[^\w\-äöüÄÖÜß ]+/g, '').trim().replace(/\s+/g, '_') || 'strecke';
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${base}_FUELENOUGH.gpx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+/* enable/disable + label the download button based on current feed points */
+function updateDownloadBtn(){
+  const btn = document.getElementById('dlGpx');
+  if (!btn) return;
+  const count = (CURRENT_FEED && CURRENT_FEED.placements) ? CURRENT_FEED.placements.length : 0;
+  btn.disabled = count === 0;
+  const cnt = document.getElementById('vpCount');
+  if (cnt) cnt.textContent = count ? ` · ${count}` : '';
+  const hint = document.getElementById('dlHint');
+  if (hint){
+    hint.textContent = count
+      ? `${count} Verpflegungspunkt${count === 1 ? '' : 'e'} werden als Wegpunkte ins GPX geschrieben.`
+      : 'Sobald feste Verpflegungspunkte gesetzt sind, kannst du das GPX hier exportieren.';
+  }
+}
+
+function requestPlan(){
+  const msg = document.getElementById('planMsg');
+  if (!TRACK){
+    msg.innerHTML = '<div class="msg err">Lade zuerst eine GPX-Datei, dann kann der Plan berechnet werden.</div>';
+    return;
+  }
+  msg.innerHTML='';
+
+  const km    = TRACK.total/1000;
+  const speed = parseFloat(document.getElementById('speed').value) || 24;
+  const estH  = km/speed;
+  const w     = parseFloat(document.getElementById('weight').value) || 75;
+  const bw    = parseFloat(document.getElementById('bike').value)   || 11;
+  const temp  = parseFloat(document.getElementById('temp').value);
+  const tC    = isFinite(temp) ? temp : 18;
+  const gain  = TRACK.hasEle ? TRACK.gain : 0;
+
+  try{
+    PLAN_INPUTS = { km, speed, estH, w, bw, tC, gain, style:BIKE_STYLE };
+    CARB_OVERRIDE = null;
+    PLAN = computePlan(PLAN_INPUTS, CARB_OVERRIDE, SELECTION);
+    renderPlan(PLAN, estH, km, speed);
+  }catch(err){
+    msg.innerHTML = `<div class="msg err"><strong>Berechnung fehlgeschlagen.</strong><br>${escapeHtml(err.message)} Prüf deine Eingaben (sind alle Felder gefüllt?) und versuch es nochmal.</div>`;
+    console.error('FUELENOUGH plan error:', err);
+  }
+}
+
+function round(n, step){ return Math.round(n/step)*step; }
+
+function computePlan(d, carbOverride, selection){
+  const { km, speed, estH, w, bw, tC, gain, style } = d;
+  const P = STYLE_PARAMS[style] || STYLE_PARAMS.Gravel;
+
+  /* --- energy expenditure: physics-lite power model --- */
+  const kit = 3;                          // kg kit + bottles
+  const M   = w + bw + kit;               // total moving mass
+  const g   = 9.81, rho = 1.225, eff = 0.23;
+  const v   = speed/3.6;                   // m/s
+  const tsec = estH*3600;
+  const pFlat  = P.crr*M*g*v + 0.5*rho*P.cda*v*v*v;        // rolling + aero
+  const pClimb = tsec>0 ? (M*g*gain)/tsec : 0;             // averaged climbing power
+  const metabolicW = (pFlat + pClimb)/eff;
+  const kcal = metabolicW*tsec/4184;
+
+  /* --- carbohydrates per hour (recommendation, by duration, nudged by style) --- */
+  let chphAuto = estH<1.5 ? 50 : estH<3 ? 65 : estH<6 ? 80 : 90;
+  if (style !== 'Rennrad') chphAuto += 5;     // bumpier disciplines cost more
+  chphAuto = Math.min(100, chphAuto);
+  // user can override the recommendation
+  const chph = (typeof carbOverride === 'number' && isFinite(carbOverride)) ? carbOverride : chphAuto;
+
+  /* --- fluid per hour (baseline + heat + body mass) --- */
+  let fl = 550;
+  if (tC > 20) fl += (tC-20)*25;
+  if (tC >= 28) fl += 100;
+  if (w > 80)  fl += 50;
+  if (style !== 'Rennrad') fl += 50;
+  fl = round(Math.min(1000, Math.max(400, fl)), 50);
+
+  /* --- sodium: per litre of fluid, rising with heat --- */
+  const naPerL = tC>=28 ? 900 : tC>=22 ? 700 : 500;
+  const naph   = round((fl/1000)*naPerL, 50);
+
+  const totalCarb  = Math.round(chph*estH);
+  const totalFluid = round(fl*estH, 100);
+  const totalKcal  = round(kcal, 10);
+
+  /* --- food list, composed from the selected products --- */
+  const food = buildFoodList(totalCarb, selection);
+
+  /* --- timeline --- */
+  const tl = [];
+  if (estH >= 5) tl.push({ zeit_h:0, aktion:'Vorabend & Frühstück kohlenhydratreich essen', warum:'volle Glykogenspeicher zum Start' });
+  tl.push({ zeit_h:0, aktion:`Start: sofort regelmäßig trinken (~${fl} ml/h), nach 20–30 min erste Kohlenhydrate`, warum:'früh beginnen, bevor der Speicher sinkt' });
+  const stops = Math.min(5, Math.max(2, Math.round(estH)));
+  for (let i=1;i<=stops;i++){
+    const z = +(estH*i/(stops+1)).toFixed(1);
+    const last = i===stops;
+    tl.push({
+      zeit_h:z,
+      aktion: last ? `Letztes Drittel: ${chph} g KH/h beibehalten, nicht nachlassen` : `${chph} g Kohlenhydrate aufnehmen, weiter trinken`,
+      warum: last ? 'jetzt sinkt die Konzentration – konstante Zufuhr stützt die Leistung' : 'gleichmäßige Zufuhr hält Blutzucker und Leistung stabil'
+    });
+  }
+
+  /* --- tips --- */
+  const tips = [
+    'Teste diese Mengen im Training – der Magen muss hohe Kohlenhydratzufuhr erst lernen.',
+    'In kleinen, regelmäßigen Portionen zuführen statt großer Mengen auf einmal.'
+  ];
+  if (estH >= 3) tips.push('Glucose-Fructose-Mix (ca. 1:0,8) erlaubt höhere Aufnahme als reine Glucose.');
+  if (tC >= 26) tips.push('Bei dieser Hitze Trinkmenge und Natrium eher am oberen Ende ansetzen.');
+  else if (tC <= 5) tips.push('Bei Kälte trinkt man oft zu wenig – bewusst regelmäßig trinken, warme Getränke helfen.');
+
+  const summary = `${km.toFixed(0)} km${gain?` mit ${Math.round(gain).toLocaleString('de-DE')} Höhenmetern`:''} bei ~${speed} km/h – geschätzte Fahrzeit ${estH.toFixed(1)} h (${style}, ${tC} °C).`;
+  const strategie = estH>=3
+    ? 'Lange Belastung: von Beginn an konstant Kohlenhydrate und regelmäßig trinken, statt erst bei Hunger oder Durst zu reagieren.'
+    : 'Moderate Dauer: gleichmäßig trinken und nach den ersten 30 Minuten in kleinen Portionen Kohlenhydrate zuführen.';
+
+  return {
+    summary, strategie,
+    kh_pro_stunde_g: chph,
+    kh_empfohlen_g: chphAuto,
+    fluessigkeit_pro_stunde_ml: fl,
+    natrium_pro_stunde_mg: naph,
+    gesamt_kh_g: totalCarb,
+    gesamt_fluessigkeit_ml: totalFluid,
+    gesamt_kalorien_kcal: totalKcal,
+    lebensmittel: food,
+    timeline: tl,
+    tipps: tips
+  };
+}
+
+/* ---------------- render plan ---------------- */
+function fmtNum(n){ return (typeof n==='number') ? n.toLocaleString('de-DE') : (n ?? '–'); }
+
+function foodRowsHtml(food){
+  return (food||[]).map(f =>
+    `<tr><td><b>${escapeHtml(f.item||'')}</b>${f.hinweis?`<span class="note">${escapeHtml(f.hinweis)}</span>`:''}</td>
+     <td class="num">${escapeHtml(f.menge||'')}</td>
+     <td class="num">${fmtNum(f.kh_g)} g</td></tr>`).join('');
+}
+function noFoodRow(){
+  return `<tr><td colspan="3" style="color:var(--muted)">Kein Produkt gewählt – aktiviere mindestens eine Kategorie und ein Produkt darin.</td></tr>`;
+}
+function buildProductPanelHtml(){
+  const pct = effectivePct();
+  return CATS.map(cat => {
+    const meta = CAT_META[cat];
+    const sel = SELECTION[cat];
+    const on = sel.on;
+    const chips = PRODUCTS.filter(p => p.cat===cat).map(p => {
+      const s = sel.ids.includes(p.id);
+      return `<button type="button" class="chip${s?' on':''}${p.custom?' custom':''}" data-cat="${cat}" data-id="${p.id}"${on?'':' disabled'}>${escapeHtml(p.name)} <i>${prodCarbs(p)} g</i></button>`;
+    }).join('');
+    const customOn = on && sel.ids.includes(`${cat}_custom`);
+    const unitWord = cat==='drink' ? 'Portion' : 'Stück';
+    const customField = customOn ? `<div class="custom-field"><label>Eigener Kohlenhydratwert</label><div class="unit" data-unit="g / ${unitWord}"><input type="number" class="custom-carb" data-cat="${cat}" min="0" max="200" step="1" value="${CUSTOM_CARB[cat]}"></div></div>` : '';
+    return `<div class="pcat${on?'':' off'}">
+      <div class="pcat-head">
+        <label class="switch"><input type="checkbox" class="cat-toggle" data-cat="${cat}"${on?' checked':''}><span></span></label>
+        <span class="pcat-name">${meta.label}</span><span class="pcat-sub">${meta.sub}</span>
+        <span class="pcat-pct" data-cat="${cat}">${on?(pct[cat]+'\u202f%'):'aus'}</span>
+      </div>
+      <input type="range" class="cat-weight" data-cat="${cat}" min="0" max="100" step="5" value="${sel.weight}"${on?'':' disabled'}>
+      <div class="chips">${chips}</div>
+      ${customField}
+    </div>`;
+  }).join('');
+}
+function rebuildPanel(){
+  const panel = document.getElementById('productPanel');
+  if (panel) panel.innerHTML = buildProductPanelHtml();
+}
+function updatePctBadges(){
+  const pct = effectivePct();
+  CATS.forEach(c => {
+    const el = document.querySelector(`.pcat-pct[data-cat="${c}"]`);
+    if (el) el.textContent = SELECTION[c].on ? (pct[c]+'\u202f%') : 'aus';
+  });
+}
+
+function renderPlan(p, estH, km, speed){
+  const tips = (p.tipps||[]).map(t=>`<li>${escapeHtml(t)}</li>`).join('');
+
+  document.getElementById('result').innerHTML = `
+    <div class="card">
+      <div class="head"><h2>Verpflegungsplan · ${escapeHtml(BIKE_STYLE)} · ${km.toFixed(0)} km</h2></div>
+      <div class="plan-summary">
+        ${escapeHtml(p.summary||'')}
+        ${p.strategie?`<div class="strat">${escapeHtml(p.strategie)}</div>`:''}
+      </div>
+
+      <div class="carb-control">
+        <div class="cc-top">
+          <div>
+            <div class="cc-label">Kohlenhydrate / Stunde</div>
+            <div class="cc-big"><b id="carbVal">${fmtNum(p.kh_pro_stunde_g)}</b><small>g/h</small></div>
+          </div>
+          <div class="cc-rec">Empfehlung<br><span>${fmtNum(p.kh_empfohlen_g)} g/h</span></div>
+        </div>
+        <input type="range" id="carbSlider" min="30" max="120" step="5" value="${p.kh_pro_stunde_g}">
+        <div class="cc-scale"><span>30 g/h</span><span>120 g/h</span></div>
+        <div class="cc-hint">Stell deine gewünschte Aufnahme ein – Gesamtmenge, Lebensmittelliste und Ablauf passen sich sofort an. Sehr hohe Werte (90+ g/h) braucht ein trainierter Magen.</div>
+      </div>
+
+      <div class="plan-top plan-top-2">
+        <div class="stat"><div class="k">Flüssigkeit / Std.</div><div class="v">${fmtNum(p.fluessigkeit_pro_stunde_ml)}<small>ml</small></div></div>
+        <div class="stat"><div class="k">Natrium / Std.</div><div class="v">${fmtNum(p.natrium_pro_stunde_mg)}<small>mg</small></div></div>
+      </div>
+      <div class="body">
+        <div class="plan-top" style="margin-top:0">
+          <div class="stat"><div class="k">Gesamt Kohlenhydrate</div><div class="v"><span id="totCarb">${fmtNum(p.gesamt_kh_g)}</span><small>g</small></div></div>
+          <div class="stat"><div class="k">Gesamt Flüssigkeit</div><div class="v">${fmtNum(p.gesamt_fluessigkeit_ml)}<small>ml</small></div></div>
+          <div class="stat"><div class="k">Gesamt Energie</div><div class="v">${fmtNum(p.gesamt_kalorien_kcal)}<small>kcal</small></div></div>
+        </div>
+
+        <div class="sec-title">Produkte wählen</div>
+        <div class="products" id="productPanel">${buildProductPanelHtml()}</div>
+        <div class="cc-hint" style="margin-top:11px">Schalter blendet eine Kategorie aus. Der Regler steuert ihren Anteil – die Prozente verteilen sich relativ zueinander und ergeben zusammen 100 %.</div>
+
+        <div class="sec-title">Was du mitnimmst</div>
+        <table><thead><tr><th>Lebensmittel</th><th>Menge</th><th>KH</th></tr></thead><tbody id="foodBody">${p.lebensmittel.length?foodRowsHtml(p.lebensmittel):noFoodRow()}</tbody></table>
+
+        <details class="vp-section" id="vpDetails" open>
+          <summary class="sec-title vp-summary">
+            <span>Verpflegungspunkte<span class="vp-count" id="vpCount"></span></span>
+            <svg class="vp-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </summary>
+          <ul class="timeline" id="tlBody"></ul>
+        </details>
+
+        <div class="dl-row">
+          <button class="dl-gpx" id="dlGpx" type="button">GPX mit Verpflegungspunkten herunterladen ↓</button>
+          <span class="dl-hint" id="dlHint"></span>
+        </div>
+
+        ${tips?`<div class="sec-title">Hinweise</div><ul class="tips">${tips}</ul>`:''}
+
+        <div style="margin-top:20px;font-size:12px;color:var(--muted);line-height:1.5">
+          Richtwerte auf Basis deiner Eingaben und allgemeiner Sporternährung — keine medizinische Beratung.
+          Schweißrate, Hitze, Magenverträglichkeit und Tagesform variieren stark; teste deine Verpflegung im Training, nicht erst am Wettkampftag.
+        </div>
+      </div>
+    </div>`;
+
+  // carbs slider
+  const slider = document.getElementById('carbSlider');
+  if (slider) slider.addEventListener('input', e => { CARB_OVERRIDE = parseInt(e.target.value,10); applyChanges(true); });
+
+  // product selection (event delegation)
+  const panel = document.getElementById('productPanel');
+  if (panel){
+    panel.addEventListener('click', e => {
+      const chip = e.target.closest('.chip'); if (!chip || chip.disabled) return;
+      const cat = chip.dataset.cat, id = chip.dataset.id, ids = SELECTION[cat].ids;
+      const i = ids.indexOf(id);
+      if (i >= 0) ids.splice(i,1); else ids.push(id);
+      rebuildPanel();          // show/hide the custom field + refresh chip states
+      applyChanges();
+    });
+    panel.addEventListener('input', e => {
+      const wt = e.target.closest('.cat-weight');
+      if (wt){
+        SELECTION[wt.dataset.cat].weight = parseInt(wt.value,10);
+        updatePctBadges();
+        applyChanges();
+        return;
+      }
+      const cc = e.target.closest('.custom-carb');
+      if (cc){
+        const cat = cc.dataset.cat;
+        const v = parseFloat(cc.value);
+        CUSTOM_CARB[cat] = (isFinite(v) && v > 0) ? v : 0;
+        const lbl = panel.querySelector(`.chip[data-id="${cat}_custom"] i`);
+        if (lbl) lbl.textContent = `${CUSTOM_CARB[cat]} g`;
+        applyChanges();
+      }
+    });
+    panel.addEventListener('change', e => {
+      const t = e.target.closest('.cat-toggle'); if (!t) return;
+      SELECTION[t.dataset.cat].on = t.checked;
+      rebuildPanel();
+      applyChanges();
+    });
+  }
+
+  const dlBtn = document.getElementById('dlGpx');
+  if (dlBtn) dlBtn.addEventListener('click', downloadGpx);
+
+  refreshFeed();
+  document.getElementById('result').style.display='block';
+  document.getElementById('result').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+// recompute and refresh the parts that can change
+function applyChanges(){
+  if (!PLAN_INPUTS) return;
+  PLAN = computePlan(PLAN_INPUTS, CARB_OVERRIDE, SELECTION);
+  const cv = document.getElementById('carbVal'); if (cv) cv.textContent = fmtNum(PLAN.kh_pro_stunde_g);
+  const tc = document.getElementById('totCarb'); if (tc) tc.textContent = fmtNum(PLAN.gesamt_kh_g);
+  const fb = document.getElementById('foodBody'); if (fb) fb.innerHTML = PLAN.lebensmittel.length ? foodRowsHtml(PLAN.lebensmittel) : noFoodRow();
+  refreshFeed();
+}
+</script>
